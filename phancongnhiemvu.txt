@@ -1,0 +1,6 @@
+Bảng phân công nhiệm vụ
+
+1. Thái Lâm : Nhóm trường - Điều hành, phân công, code, chỉnh sửa
+2. Thiện Mỹ : Tạo cấu trúc, design, tìm hình ảnh và thông tin 1 phần
+3. Công Minh : Tìm hình ảnh và thông tin
+4. Như Ý : Tìm hình ảnh và thông tin
