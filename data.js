@@ -174,12 +174,23 @@ const appsData = [
     "uu_diem": "Độ chính xác cao, cập nhật trên mọi trình duyệt web",
     "nhuoc_diem": "Độ phức tạp cao, ngôn ngữ chủ yếu là tiếng Anh",
     "link": "https://download.com.vn/download/chemlab-2-5-22726"
+  },
+  {
+    "ten_phan_mem": "Crocodile Physis",
+    "hinh_anh": "./picture/crocodilepysis.png",
+    "thiet_bi": "Máy tính",
+    "cach_dung": "Tùy chỉnh thông số vật lý trong việc mô phỏng thí nghiệm.",
+    "dung_de": "quan sát kết quả qua các thiết bị đo hoặc đồ thị.",
+    "dac_diem": "Mô phỏng thí nghiệm",
+    "uu_diem": "Giao diện trực quan, an toàn và tiết kiệm",
+    "nhuoc_diem": "Đồ họa cũ, độ chính xác còn hạn chế",
+    "link": "https://www.mediafire.com/file/m0ko330lmjs2bkr/Crocodile_Physics_v6.05_%2528full%2529.rar/file"
   }
 ];
 
 const subjectsData = {
   "Toán học": ["Quizizz", "Kahoot!"],
-  "Vật lí": ["PhET Interactive Simulations", "Quizizz", "Kahoot!", "Google Classroom"],
+  "Vật lí": ["PhET Interactive Simulations", "Crocodile Physis", "Quizizz", "Kahoot!", "Google Classroom"],
   "Hóa học": ["Crocodile chemistry 1.5", "Chem collective", "PhET Interactive Simulations", "Quizizz", "Kahoot!", "Google Classroom"],
   "Sinh học": ["BioDigital Human", "PhET Interactive Simulations", "Quizizz", "Kahoot!", "Google Classroom"],
   "Ngữ văn": ["MindMeister", "Google Classroom", "Quizizz", "Kahoot!"],
