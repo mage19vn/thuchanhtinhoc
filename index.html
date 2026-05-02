@@ -474,7 +474,12 @@ print(f"Tổng là: {tong}")</textarea>
             initializeDebugMenu(globalTraceData);
 
             if (globalTraceData.length > 0) {
-                renderStep(0);
+                if (!isVisualizerVisible) {
+                    currentStepIndex = globalTraceData.length - 1;
+                } else {
+                    currentStepIndex = 0;
+                }
+                renderStep(currentStepIndex);
             } else {
                 activeLine.style.display = 'none';
                 printToConsole(globalOutput);
