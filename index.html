@@ -206,6 +206,59 @@ print(f"Tổng là: {tong}")</textarea>
         let isDebugOpen = false;
         let visibleVariables = new Set();
 
+        codeInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Tab') {
+                e.preventDefault(); 
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                
+                this.value = this.value.substring(0, start) + "\t" + this.value.substring(end);
+                
+                this.selectionStart = this.selectionEnd = start + 1; 
+                updateEditor();
+            }
+
+            if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+                e.preventDefault();
+                
+                const lang = langSelect.value;
+                const cmtSymbol = lang === 'cpp' ? '//' : '#'; 
+                
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                const val = this.value;
+                
+                const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+                let lineEnd = val.indexOf('\n', end);
+                if (lineEnd === -1) lineEnd = val.length;
+                
+                const lines = val.substring(lineStart, lineEnd).split('\n');
+                
+                const allCommented = lines.every(line => line.trim() === '' || line.trim().startsWith(cmtSymbol));
+                
+                let newLinesStr;
+                if (allCommented) {
+                    newLinesStr = lines.map(line => {
+                        const trimmed = line.trimStart();
+                        if (trimmed.startsWith(cmtSymbol)) {
+                            const hasSpace = trimmed.startsWith(cmtSymbol + ' ') ? 1 : 0;
+                            return line.replace(cmtSymbol + (hasSpace ? ' ' : ''), '');
+                        }
+                        return line;
+                    }).join('\n');
+                } else {
+                    newLinesStr = lines.map(line => cmtSymbol + ' ' + line).join('\n');
+                }
+                
+                this.value = val.substring(0, lineStart) + newLinesStr + val.substring(lineEnd);
+                
+                this.selectionStart = lineStart;
+                this.selectionEnd = lineStart + newLinesStr.length;
+                
+                updateEditor();
+            }
+        });
+
         function changeLanguage() {
             const lang = langSelect.value;
             codeHighlight.className = lang === 'cpp' ? 'language-cpp' : 'language-python';
