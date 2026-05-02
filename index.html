@@ -508,11 +508,19 @@ print(f"Tổng là: {tong}")</textarea>
             loader.style.display = 'inline-block';
 
             try {
+                const response = await fetch('https://predefine-pavement-zit.ngrok-free.dev/api/visualize', { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ language: lang, code: code, inputs: inputs }) 
+                });
+
+                /*
                 const response = await fetch('http://127.0.0.1:8000/api/visualize', { 
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ language: lang, code: code, inputs: inputs }) 
                 });
+                */
 
                 if (!response.ok) {
                     throw new Error(`Server trả về lỗi: ${response.status}`);
