@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unicorn Code Visualizer</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23ffffff'/><text x='50%' y='50%' dominant-baseline='central' text-anchor='middle' font-family='Consolas, monospace' font-weight='bold' font-size='45' fill='%23d9534f'>[ / ]</text></svg>">
+    
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-cpp.min.js"></script>
+
+    <style>
+        :root {
+            --bg-base: #f3f0ea; 
+            --bg-panel: #ffffff; 
+            --border: #e0dcd5;
+            --text-main: #333333;
+            --text-muted: #777777;
+            --text-accent: #d9534f; 
+            --btn-bg: #f8f9fa;
+            --btn-hover: #e2e6ea;
+            --btn-run: #212529; 
+            --btn-run-hover: #000000;
+            --font-ui: 'Segoe UI', system-ui, sans-serif;
+            --font-code: 'Consolas', 'Fira Code', monospace;
+            --hl-line-bg: rgba(217, 83, 79, 0.1);
+            --hl-line-border: #d9534f;
+            --block-bg: #e9ecef;
+            --block-text: #212529;
+            --shadow-card: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background-color: var(--bg-base); color: var(--text-main); font-family: var(--font-ui); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cccccc; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #aaaaaa; }
+
+        /* --- HEADER & CONTROLS --- */
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background-color: var(--bg-panel); border-bottom: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.02); z-index: 10;}
+        .logo { font-size: 18px; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 8px; letter-spacing: -0.5px; }
+        .logo span { color: var(--text-accent); font-family: var(--font-code); }
+        
+        .controls { display: flex; align-items: center; gap: 10px; }
+        .controls button, .controls select { background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; transition: 0.2s; outline: none; box-shadow: 0 1px 2px rgba(0,0,0,0.02);}
+        .controls button:hover, .controls select:hover { background: var(--btn-hover); }
+        .controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .controls .btn-run { background: var(--btn-run); color: white; border: none; }
+        .controls .btn-run:hover:not(:disabled) { background: var(--btn-run-hover); }
+        
+        #loader { font-size: 13px; color: var(--text-muted); display: none; margin-right: 10px; font-weight: 600; }
+        .spinning { display: inline-block; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* --- MAIN LAYOUT (CARD STYLE) --- */
+        .workspace { display: flex; flex: 1; overflow: hidden; padding: 20px; gap: 20px; max-width: 1400px; margin: 0 auto; width: 100%; }
+        .pane { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--shadow-card); }
+        .pane-left { flex: 5; display: flex; flex-direction: column; gap: 20px; background: transparent; border: none; }
+        .pane-right { flex: 4; }
+        
+        .pane-header { padding: 12px 16px; font-size: 13px; font-weight: 700; color: var(--text-main); border-bottom: 1px solid var(--border); background: var(--bg-panel); letter-spacing: 0.2px; display: flex; align-items: center; gap: 8px; }
+
+        /* --- EDITOR --- */
+        .editor-container { flex: 2; display: flex; position: relative; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-card);}
+        .line-numbers { padding: 15px 10px; background: #fdfdfd; color: #adb5bd; text-align: right; font-family: var(--font-code); font-size: 14px; line-height: 24px; user-select: none; border-right: 1px solid var(--border); min-width: 45px; overflow-y: hidden; }
+        
+        .textarea-wrapper { flex: 1; position: relative; overflow: hidden; background: transparent; }
+        
+        #highlightLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; padding: 15px 10px; margin: 0; border: none; background: transparent; font-family: var(--font-code); font-size: 14px; line-height: 24px; white-space: pre; overflow: hidden; pointer-events: none; z-index: 0; }
+        #highlightLayer code { font-family: var(--font-code); text-shadow: none !important; }
+        
+        textarea#codeInput { position: absolute; top: 0; left: 0; width: 100%; height: 100%; padding: 15px 10px; border: none; background: transparent; color: transparent; caret-color: var(--text-main); font-family: var(--font-code); font-size: 14px; line-height: 24px; resize: none; outline: none; white-space: pre; overflow: auto; z-index: 2; }
+        textarea#codeInput::selection { background: rgba(0, 123, 255, 0.2); color: transparent; }
+        
+        .active-line { position: absolute; left: 0; right: 0; height: 24px; background: var(--hl-line-bg); border-left: 3px solid var(--hl-line-border); pointer-events: none; display: none; z-index: 1; transition: top 0.1s ease; }
+        .active-line::before { content: "▶"; color: var(--hl-line-border); position: absolute; left: 6px; top: 2px; font-size: 10px; }
+
+        /* --- CONSOLE --- */
+        .console-container { flex: 1; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; display: flex; flex-direction: column; box-shadow: var(--shadow-card);}
+        .console-output { flex: 1; padding: 12px 16px; font-family: var(--font-code); font-size: 13px; overflow-y: auto; white-space: pre-wrap; color: var(--text-main); background: #fafafa; }
+        .text-err { color: #dc3545; font-weight: bold;}
+        .text-sys { color: #0d6efd; font-style: italic;}
+
+        /* --- VISUALIZER --- */
+        .visualizer-area { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; background: #fafafa; }
+        
+        .var-row { display: flex; align-items: flex-start; gap: 12px; padding-bottom: 16px; border-bottom: 1px dashed var(--border); font-family: var(--font-code); }
+        .var-row:last-child { border-bottom: none; }
+        .var-name { width: 90px; text-align: right; font-weight: bold; color: #0056b3; padding-top: 6px; word-break: break-all; }
+        .var-eq { color: var(--text-muted); padding-top: 6px; font-weight: bold; }
+        
+        .var-values { flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .var-block { background: var(--block-bg); color: var(--block-text); padding: 6px 12px; border-radius: 6px; font-size: 14px; border: 1px solid #ced4da; box-shadow: 0 1px 2px rgba(0,0,0,0.05); min-width: 30px; text-align: center; }
+        .var-symbol { color: var(--text-muted); font-size: 18px; font-weight: bold; }
+
+        /* --- MODAL --- */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); display: none; z-index: 999; backdrop-filter: blur(1px); }
+        .modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; width: 350px; z-index: 1000; box-shadow: 0 10px 40px rgba(0,0,0,0.15); display: none; overflow: hidden; }
+        .modal-header { padding: 15px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-weight: bold; background: #f8f9fa;}
+        .modal-header button { background: transparent; color: var(--text-muted); border: none; font-size: 18px; cursor: pointer; }
+        .modal-header button:hover { color: var(--text-accent); }
+        .modal-body { padding: 15px 20px; max-height: 300px; overflow-y: auto; }
+        
+        .var-toggle-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f1f1f1; font-family: var(--font-code); font-size: 14px; }
+        .var-toggle-item:last-child { border: none; }
+        input[type="checkbox"] { accent-color: var(--text-accent); width: 16px; height: 16px; cursor: pointer; }
+        
+        /* --- CSS CHO CLASS VÀ DICTIONARY --- */
+        .var-obj-box { background: #ffffff; border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; min-width: 150px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .var-obj-header { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px dashed var(--border); padding-bottom: 6px; margin-bottom: 4px; font-weight: bold; }
+        .var-obj-row { font-size: 13px; display: flex; gap: 8px; }
+        .var-obj-key { color: #0056b3; font-weight: 600; }
+        .var-obj-val { color: #212529; }
+    </style>
+</head>
+<body>
+
+    <div id="modalOverlay" class="modal-overlay" onclick="toggleDebug()"></div>
+    <div id="debugModal" class="modal">
+        <div class="modal-header">
+            <span>⚙ Cài đặt hiển thị</span>
+            <button onclick="toggleDebug()">✕</button>
+        </div>
+        <div class="modal-body" id="debugList">
+            <div style="color: #8b949e; font-size: 13px; text-align: center;">Chưa có dữ liệu. Hãy chạy code trước!</div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <div class="header">
+        <div class="logo"><span>[ / ]</span> Unicorn Code Visualizer</div>
+        <div class="controls">
+            <span id="loader"><span class="spinning">⚙</span> Đang xử lý...</span>
+            <button onclick="toggleDebug()" title="Cài đặt biến">⚙</button>
+            <select id="langSelect" onchange="changeLanguage()">
+                <option value="python">Python 3</option>
+                <option value="cpp">C++ (GDB)</option>
+            </select>
+            <button id="prevBtn" onclick="prevStep()" disabled>⏮</button>
+            <button id="nextBtn" onclick="nextStep()" disabled>⏭</button>
+            <button id="runBtn" class="btn-run" onclick="runCode()">▶ Chạy Code</button>
+        </div>
+    </div>
+
+    <!-- Main Workspace -->
+    <div class="workspace">
+        <div class="pane-left">
+            <!-- Code Editor -->
+            <div class="editor-container">
+                <div id="lineNumbers" class="line-numbers"></div>
+                <div class="textarea-wrapper">
+                    <div id="activeLine" class="active-line"></div>
+                    <pre id="highlightLayer" aria-hidden="true"><code class="language-python" id="codeHighlight"></code></pre>
+                    <textarea id="codeInput" spellcheck="false" oninput="updateEditor()" onscroll="syncScroll()">
+print("Khởi tạo danh sách:")
+arr = [5, 10, 15]
+tong = 0
+
+for so in arr:
+    tong = tong + so
+    print(f"Cộng {so}, tổng hiện tại = {tong}")
+
+ket_qua = "Hoàn thành!"
+print(ket_qua)</textarea>
+                </div>
+            </div>
+            
+            <!-- Console -->
+            <div class="console-container">
+                <div class="pane-header">📺 Terminal Output</div>
+                <div id="consoleOutput" class="console-output"></div>
+            </div>
+        </div>
+
+        <div class="pane-right pane">
+            <div class="pane-header">🔍 Memory & Variables</div>
+            <div id="visualizerArea" class="visualizer-area">
+                <div style="color: #8b949e; font-size: 13px; text-align: center; margin-top: 40px;">
+                    Biến sẽ được mô phỏng trực quan tại đây sau khi bạn nhấn Chạy.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const consoleOutput = document.getElementById('consoleOutput');
+        const visualizerArea = document.getElementById('visualizerArea');
+        const runBtn = document.getElementById('runBtn');
+        const loader = document.getElementById('loader');
+        const langSelect = document.getElementById('langSelect');
+        const codeInput = document.getElementById('codeInput');
+        const lineNumbers = document.getElementById('lineNumbers');
+        const activeLine = document.getElementById('activeLine');
+        const codeHighlight = document.getElementById('codeHighlight');
+        
+        const debugModal = document.getElementById('debugModal');
+        const modalOverlay = document.getElementById('modalOverlay');
+        const debugList = document.getElementById('debugList');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+
+        let globalTraceData = [];
+        let globalOutput = "";
+        let currentStepIndex = 0;
+        let isDebugOpen = false;
+        let visibleVariables = new Set();
+
+        function changeLanguage() {
+            const lang = langSelect.value;
+            codeHighlight.className = lang === 'cpp' ? 'language-cpp' : 'language-python';
+            
+            if (lang === 'cpp' && codeInput.value.includes('print("Khởi tạo danh')) {
+                codeInput.value = `#include <iostream>\nusing namespace std;\n\nint main() {\n    int tong = 0;\n    for(int i = 1; i <= 3; i++) {\n        tong += i;\n        cout << "Tong: " << tong << endl;\n    }\n    return 0;\n}`;
+            }
+            updateEditor();
+        }
+
+        // --- UI: EDITOR ---
+        function updateEditor() {
+            const text = codeInput.value;
+            const lines = text.split('\n').length;
+            lineNumbers.innerHTML = Array(lines).fill(0).map((_, i) => i + 1).join('<br>');
+            
+            let escapedText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            if (escapedText[escapedText.length - 1] === "\n") escapedText += " "; 
+            
+            codeHighlight.innerHTML = escapedText;
+            Prism.highlightElement(codeHighlight);
+        }
+        
+        function syncScroll() {
+            lineNumbers.scrollTop = codeInput.scrollTop;
+            document.getElementById('highlightLayer').scrollTop = codeInput.scrollTop;
+            document.getElementById('highlightLayer').scrollLeft = codeInput.scrollLeft;
+            updateArrowPosition();
+        }
+
+        function updateArrowPosition() {
+            if (globalTraceData.length > 0 && currentStepIndex >= 0) {
+                const line = globalTraceData[currentStepIndex].line;
+                const topPos = 15 + ((line - 1) * 24) - codeInput.scrollTop;
+                activeLine.style.top = topPos + 'px';
+            }
+        }
+        updateEditor();
+
+        // --- UI: MODAL ---
+        function toggleDebug() {
+            isDebugOpen = !isDebugOpen;
+            debugModal.style.display = isDebugOpen ? 'block' : 'none';
+            modalOverlay.style.display = isDebugOpen ? 'block' : 'none';
+        }
+
+        function initializeDebugMenu(traceData) {
+            let allUnique = new Set();
+            visibleVariables.clear();
+
+            traceData.forEach(step => {
+                if (step.vars) {
+                    Object.keys(step.vars).forEach(varName => {
+                        if (!varName.startsWith('__')) allUnique.add(varName);
+                    });
+                }
+            });
+
+            allUnique.forEach(v => visibleVariables.add(v));
+            if (allUnique.size === 0) return;
+
+            debugList.innerHTML = '';
+            allUnique.forEach(varName => {
+                const item = document.createElement('label');
+                item.className = 'var-toggle-item';
+                item.innerHTML = `<input type="checkbox" checked onchange="toggleVar('${varName}', this.checked)"> <span>${varName}</span>`;
+                debugList.appendChild(item);
+            });
+        }
+
+        function toggleVar(varName, isVisible) {
+            isVisible ? visibleVariables.add(varName) : visibleVariables.delete(varName);
+            if (globalTraceData.length > 0) renderVariables(globalTraceData[currentStepIndex].vars);
+        }
+
+        function printToConsole(text, type = "normal") {
+            const span = document.createElement('span');
+            span.textContent = text + '\n';
+            if (type === "error") span.className = "text-err";
+            if (type === "system") span.className = "text-sys";
+            consoleOutput.appendChild(span);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+
+        // --- RENDER BIẾN ---
+        function renderVariables(varsObj) {
+            visualizerArea.innerHTML = '';
+            
+            const entries = Object.entries(varsObj || {}).filter(([k]) => !k.startsWith('__') && visibleVariables.has(k));
+            if (entries.length === 0) {
+                visualizerArea.innerHTML = '<div style="color:#8b949e; font-size:13px; text-align:center;">Trống</div>';
+                return;
+            }
+
+            for (const [name, data] of entries) {
+                const row = document.createElement('div');
+                row.className = 'var-row';
+                
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'var-name';
+                nameDiv.textContent = name;
+                
+                const eqDiv = document.createElement('div');
+                eqDiv.className = 'var-eq';
+                eqDiv.textContent = '=';
+
+                const valsDiv = document.createElement('div');
+                valsDiv.className = 'var-values';
+
+                let dataType = data.type || "prim";
+                let dataVal = data.val !== undefined ? data.val : data;
+
+                if (dataType === 'list') {
+                    const bOpen = document.createElement('span'); bOpen.className = 'var-symbol'; bOpen.textContent = '[';
+                    valsDiv.appendChild(bOpen);
+
+                    (Array.isArray(dataVal) ? dataVal : []).forEach(item => {
+                        const block = document.createElement('div');
+                        block.className = 'var-block';
+                        block.textContent = item;
+                        valsDiv.appendChild(block);
+                    });
+
+                    const bClose = document.createElement('span'); bClose.className = 'var-symbol'; bClose.textContent = ']';
+                    valsDiv.appendChild(bClose);
+
+                } else if (dataType === 'object' || dataType === 'dict') {
+                    const objBox = document.createElement('div');
+                    objBox.className = 'var-obj-box';
+                    
+                    const header = document.createElement('div');
+                    header.className = 'var-obj-header';
+                    header.textContent = dataType === 'object' ? `Class: ${data.class_name}` : `Dictionary`;
+                    objBox.appendChild(header);
+
+                    const subEntries = Object.entries(dataVal || {});
+                    if (subEntries.length === 0) {
+                        const empty = document.createElement('div');
+                        empty.style.color = 'var(--text-muted)';
+                        empty.style.fontSize = '12px';
+                        empty.textContent = '{} (Trống)';
+                        objBox.appendChild(empty);
+                    } else {
+                        subEntries.forEach(([key, val]) => {
+                            const row = document.createElement('div');
+                            row.className = 'var-obj-row';
+                            row.innerHTML = `<span class="var-obj-key">${key}:</span> <span class="var-obj-val">${val}</span>`;
+                            objBox.appendChild(row);
+                        });
+                    }
+                    valsDiv.appendChild(objBox);
+                } else {
+                    const block = document.createElement('div');
+                    block.className = 'var-block';
+                    block.textContent = dataVal;
+                    valsDiv.appendChild(block);
+                }
+
+                row.appendChild(nameDiv);
+                row.appendChild(eqDiv);
+                row.appendChild(valsDiv);
+                visualizerArea.appendChild(row);
+            }
+        }
+
+        // --- TRACE LOGIC ---
+        function setupTrace(traceData, fullOutput) {
+            globalTraceData = traceData || [];
+            globalOutput = fullOutput || "";
+            currentStepIndex = 0;
+            
+            runBtn.disabled = false;
+            initializeDebugMenu(globalTraceData);
+
+            if (globalTraceData.length > 0) {
+                renderStep(0);
+            } else {
+                activeLine.style.display = 'none';
+                printToConsole(globalOutput);
+            }
+        }
+
+        function renderStep(index) {
+            const step = globalTraceData[index];
+            if (!step) return;
+
+            renderVariables(step.vars);
+            activeLine.style.display = 'block';
+            updateArrowPosition();
+
+            prevBtn.disabled = index === 0;
+            nextBtn.disabled = index === globalTraceData.length - 1;
+
+            consoleOutput.innerHTML = '';
+            if (index === globalTraceData.length - 1) {
+                printToConsole(globalOutput);
+            } else {
+                printToConsole("> Đang chạy từng bước...", "system");
+            }
+        }
+
+        function nextStep() {
+            if (currentStepIndex < globalTraceData.length - 1) {
+                currentStepIndex++;
+                renderStep(currentStepIndex);
+            }
+        }
+
+        function prevStep() {
+            if (currentStepIndex > 0) {
+                currentStepIndex--;
+                renderStep(currentStepIndex);
+            }
+        }
+
+        // --- KẾT NỐI SERVER BACKEND CHẠY CẢ C++ & PYTHON ---
+        async function runCode() {
+            const code = codeInput.value;
+            const lang = langSelect.value;
+            
+            consoleOutput.innerHTML = '';
+            visualizerArea.innerHTML = '';
+            runBtn.disabled = true;
+            loader.style.display = 'inline-block';
+
+            try {
+                
+                const response = await fetch('http://127.0.0.1:8000/api/visualize', { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ language: lang, code: code })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server trả về lỗi: ${response.status}`);
+                }
+
+                const result = await response.json();
+
+                if (result.error) {
+                    printToConsole("[" + lang.toUpperCase() + " Error] " + result.error, "error");
+                    runBtn.disabled = false;
+                    activeLine.style.display = 'none';
+                    return;
+                }
+
+                setupTrace(result.trace, result.output);
+                
+            } catch (err) {
+                printToConsole("[Lỗi Kết Nối] " + err.message, "error");
+                printToConsole("⚠️ Hãy đảm bảo Backend Server đang chạy tại http://localhost:8000/api/visualize", "system");
+                runBtn.disabled = false;
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
