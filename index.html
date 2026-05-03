@@ -133,6 +133,22 @@
         .workspace.hide-vis .pane-left { flex-direction: row; }
         .workspace.hide-vis .editor-container { flex: 5; }
         .workspace.hide-vis .io-wrapper { flex: 4; flex-direction: column; }
+
+        /* --- IDE FEATURES --- */
+        .search-box { position: absolute; top: 10px; right: 20px; background: var(--bg-panel); border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 6px 10px; border-radius: 6px; display: none; align-items: center; gap: 8px; z-index: 100; font-size: 13px; }
+        .search-box input { border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; outline: none; font-family: var(--font-ui); font-size: 13px; width: 150px; }
+        .search-box button { background: var(--btn-bg); border: 1px solid var(--border); cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: 0.2s; font-size: 12px;}
+        .search-box button:hover { background: var(--btn-hover); }
+        mark.search-match { background: rgba(255, 235, 59, 0.4); color: inherit; border-radius: 2px; }
+        
+        .autocomplete-list { position: absolute; background: #252526; color: #d4d4d4; border: 1px solid #454545; box-shadow: 0 4px 12px rgba(0,0,0,0.5); border-radius: 4px; list-style: none; padding: 4px 0; margin: 0; z-index: 100; display: none; max-height: 200px; overflow-y: auto; min-width: 250px; font-family: var(--font-code); font-size: 13px; }
+        .autocomplete-list li { padding: 4px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; border-left: 2px solid transparent;}
+        .autocomplete-list li.active, .autocomplete-list li:hover { background: #04395e; color: #ffffff; border-left-color: #007acc; }
+        .suggest-icon { display: inline-block; width: 16px; height: 16px; line-height: 16px; text-align: center; font-size: 11px; font-weight: bold; border-radius: 3px; font-family: sans-serif; }
+        .icon-keyword { background: #b057b5; color: white; } 
+        .icon-variable { background: #007acc; color: white; } 
+        .suggest-text { flex: 1; }
+        .suggest-match { color: #569cd6; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -161,9 +177,6 @@
             <button id="btnToggleVis" class="btn-toggle-vis" onclick="toggleVisualizer()" title="Bật/tắt bảng Visualizer">Ẩn Visualizer</button>
 
             <button onclick="toggleDebug()" title="Cài đặt biến">⚙</button>
-            <select id="exampleSelect" onchange="loadExample()">
-                <option value="">-- Bài mẫu --</option>
-            </select>
             <select id="langSelect" onchange="changeLanguage()">
                 <option value="python">Python 3</option>
                 <option value="cpp">C++ (GDB)</option>
@@ -178,6 +191,12 @@
         <div class="pane-left">
             <div class="editor-container">
                 <div id="lineNumbers" class="line-numbers"></div>
+                <div id="searchBox" class="search-box">
+                    <input type="text" id="searchInput" placeholder="Tìm (Ctrl+F)..." oninput="doSearch()">
+                    <span id="searchCount" style="color: var(--text-muted); font-weight: 600;">0</span>
+                    <button onclick="closeSearch()">✕</button>
+                </div>
+                <ul id="autocompleteList" class="autocomplete-list"></ul>
                 <div class="textarea-wrapper">
                     <div id="prevLine" class="prev-line"></div>
                     <div id="activeLine" class="active-line"></div>
@@ -305,34 +324,110 @@ print(f"Tổng là: {tong}")</textarea>
             }
         }
 
+        const ideKeywords = {
+            python: ["print", "int", "input", "str", "float", "if", "else", "elif", "for", "while", "def", "return", "import", "from", "True", "False", "None", "len", "range", "list", "dict", "set", "class", "try", "except", "pass", "break", "continue"],
+            cpp: ["#include", "using", "namespace", "std", "int", "float", "double", "char", "string", "bool", "if", "else", "for", "while", "do", "return", "cout", "cin", "endl", "main", "void", "class", "struct", "vector", "break", "continue"]
+        };
+
+        let isAutocompleting = false;
+        let currentSuggestionIndex = 0;
+
         codeInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Tab') {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+                e.preventDefault();
+                document.getElementById('searchBox').style.display = 'flex';
+                document.getElementById('searchInput').focus();
+                
+                const selText = this.value.substring(this.selectionStart, this.selectionEnd);
+                if (selText) {
+                    document.getElementById('searchInput').value = selText;
+                    doSearch();
+                }
+                return;
+            }
+
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+                e.preventDefault();
+                let start = this.selectionStart;
+                let end = this.selectionEnd;
+                let word = this.value.substring(start, end);
+                
+                if (!word) {
+                    const left = this.value.substring(0, start).match(/[a-zA-Z0-9_]+$/);
+                    const right = this.value.substring(start).match(/^[a-zA-Z0-9_]+/);
+                    word = (left ? left[0] : '') + (right ? right[0] : '');
+                }
+                
+                if (word) {
+                    let newWord = prompt(`[Sửa đồng loạt]\nNhập từ thay thế cho "${word}":`, word);
+                    if (newWord !== null && newWord !== word) {
+                        const regex = new RegExp(`\\b${word}\\b`, 'g'); 
+                        this.value = this.value.replace(regex, newWord);
+                        updateEditor();
+                    }
+                }
+                return;
+            }
+
+            if (e.ctrlKey && e.code === 'Space') {
+                e.preventDefault();
+                showAutocomplete(true);
+                return;
+            }
+
+            if (isAutocompleting) {
+                const list = document.getElementById('autocompleteList');
+                const items = list.querySelectorAll('li');
+                
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    items[currentSuggestionIndex]?.classList.remove('active');
+                    currentSuggestionIndex = (currentSuggestionIndex + 1) % items.length;
+                    items[currentSuggestionIndex]?.classList.add('active');
+                    items[currentSuggestionIndex]?.scrollIntoView({block: 'nearest'});
+                    return;
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    items[currentSuggestionIndex]?.classList.remove('active');
+                    currentSuggestionIndex = (currentSuggestionIndex - 1 + items.length) % items.length;
+                    items[currentSuggestionIndex]?.classList.add('active');
+                    items[currentSuggestionIndex]?.scrollIntoView({block: 'nearest'});
+                    return;
+                } else if (e.key === 'Enter' || e.key === 'Tab') {
+                    e.preventDefault();
+                    const activeItem = items[currentSuggestionIndex];
+                    if (activeItem) {
+                        const event = new MouseEvent('mousedown');
+                        activeItem.dispatchEvent(event);
+                    }
+                    return;
+                } else if (e.key === 'Escape' || e.key === ' ') {
+                    closeAutocomplete();
+                    return; 
+                }
+            }
+
+            if (e.key === 'Tab' && !isAutocompleting) {
                 e.preventDefault(); 
                 const start = this.selectionStart;
                 const end = this.selectionEnd;
-                
                 this.value = this.value.substring(0, start) + "\t" + this.value.substring(end);
-                
                 this.selectionStart = this.selectionEnd = start + 1; 
                 updateEditor();
             }
 
             if ((e.ctrlKey || e.metaKey) && e.key === '/') {
                 e.preventDefault();
-                
                 const lang = langSelect.value;
                 const cmtSymbol = lang === 'cpp' ? '//' : '#'; 
-                
                 const start = this.selectionStart;
                 const end = this.selectionEnd;
                 const val = this.value;
-                
                 const lineStart = val.lastIndexOf('\n', start - 1) + 1;
                 let lineEnd = val.indexOf('\n', end);
                 if (lineEnd === -1) lineEnd = val.length;
                 
                 const lines = val.substring(lineStart, lineEnd).split('\n');
-                
                 const allCommented = lines.every(line => line.trim() === '' || line.trim().startsWith(cmtSymbol));
                 
                 let newLinesStr;
@@ -350,13 +445,199 @@ print(f"Tổng là: {tong}")</textarea>
                 }
                 
                 this.value = val.substring(0, lineStart) + newLinesStr + val.substring(lineEnd);
-                
                 this.selectionStart = lineStart;
                 this.selectionEnd = lineStart + newLinesStr.length;
-                
                 updateEditor();
             }
         });
+
+        codeInput.addEventListener('input', (e) => {
+            if (e.inputType === 'deleteContentBackward') {
+                closeAutocomplete();
+                return;
+            }
+            showAutocomplete(false);
+        });
+        codeInput.addEventListener('click', closeAutocomplete);
+        codeInput.addEventListener('scroll', closeAutocomplete);
+
+        function getDynamicWords() {
+            const text = codeInput.value;
+            const matches = text.match(/[a-zA-Z_]\w*/g) || [];
+            return [...new Set(matches)]; 
+        }
+
+        function showAutocomplete(force = false) {
+            const start = codeInput.selectionStart;
+            const textToCursor = codeInput.value.substring(0, start);
+            
+            const match = textToCursor.match(/[a-zA-Z0-9_]+$/);
+            const word = match ? match[0] : "";
+            
+            if (word.length < 1 && !force) {
+                closeAutocomplete();
+                return;
+            }
+
+            const lang = langSelect.value;
+            const staticKeywords = ideKeywords[lang] || [];
+            const dynamicWords = getDynamicWords();
+
+            let suggestions = [];
+            
+            dynamicWords.forEach(w => {
+                if (!staticKeywords.includes(w) && w.toLowerCase().startsWith(word.toLowerCase()) && w !== word) {
+                    suggestions.push({ text: w, type: 'variable', icon: 'V', class: 'icon-variable' });
+                }
+            });
+
+            staticKeywords.forEach(w => {
+                if (w.toLowerCase().startsWith(word.toLowerCase()) && w !== word) {
+                    suggestions.push({ text: w, type: 'keyword', icon: 'K', class: 'icon-keyword' });
+                }
+            });
+
+            const list = document.getElementById('autocompleteList');
+            list.innerHTML = '';
+            
+            if (suggestions.length === 0) {
+                closeAutocomplete();
+                return;
+            }
+
+            suggestions.sort((a, b) => a.text.localeCompare(b.text));
+
+            suggestions.forEach((item, i) => {
+                const li = document.createElement('li');
+                if (i === 0) li.className = 'active';
+                
+                const matchedPart = item.text.substring(0, word.length);
+                const restPart = item.text.substring(word.length);
+                
+                li.innerHTML = `
+                    <span class="suggest-icon ${item.class}">${item.icon}</span>
+                    <span class="suggest-text"><span class="suggest-match">${matchedPart}</span>${restPart}</span>
+                `;
+
+                li.onmousedown = function(e) { 
+                    e.preventDefault();
+                    insertAutocomplete(item.text, word.length);
+                };
+                list.appendChild(li);
+            });
+
+            const lines = textToCursor.split('\n');
+            const currentLineIndex = lines.length - 1;
+            const currentColIndex = lines[currentLineIndex].length;
+            
+            const top = 15 + (currentLineIndex * 24) - codeInput.scrollTop + 24; 
+            const left = 45 + 10 + (currentColIndex * 7.8) - codeInput.scrollLeft;
+
+            const finalTop = Math.min(top, codeInput.clientHeight - 100);
+            const finalLeft = Math.min(left, codeInput.clientWidth - 200);
+
+            list.style.top = finalTop + 'px';
+            list.style.left = finalLeft + 'px';
+            list.style.display = 'block';
+            
+            isAutocompleting = true;
+            currentSuggestionIndex = 0;
+        }
+
+        function insertAutocomplete(word, replaceLength) {
+            const start = codeInput.selectionStart;
+            const val = codeInput.value;
+            
+            const beforeCursor = val.substring(0, start - replaceLength);
+            const afterCursor = val.substring(start);
+            
+            codeInput.value = beforeCursor + word + afterCursor;
+            
+            const newCursorPos = start - replaceLength + word.length;
+            codeInput.selectionStart = codeInput.selectionEnd = newCursorPos;
+            
+            updateEditor();
+            closeAutocomplete();
+            
+            codeInput.focus();
+        }
+
+        function closeAutocomplete() {
+            document.getElementById('autocompleteList').style.display = 'none';
+            isAutocompleting = false;
+        }
+
+        function doSearch() { updateEditor(); }
+        
+        function closeSearch() {
+            document.getElementById('searchBox').style.display = 'none';
+            document.getElementById('searchInput').value = '';
+            updateEditor();
+            codeInput.focus();
+        }
+
+        function showAutocomplete() {
+            const start = codeInput.selectionStart;
+            const text = codeInput.value.substring(0, start);
+            const match = text.match(/[a-zA-Z0-9_]+$/); 
+            const word = match ? match[0] : "";
+            
+            const lang = langSelect.value;
+            const words = ideKeywords[lang].filter(w => w.toLowerCase().startsWith(word.toLowerCase()));
+            
+            const list = document.getElementById('autocompleteList');
+            list.innerHTML = '';
+            
+            if (words.length === 0) {
+                closeAutocomplete();
+                return;
+            }
+
+            words.forEach((w, i) => {
+                const li = document.createElement('li');
+                li.textContent = w;
+                if (i === 0) li.className = 'active';
+                li.onmousedown = (e) => { 
+                    e.preventDefault();
+                    insertAutocomplete(w, word.length);
+                };
+                list.appendChild(li);
+            });
+
+            const lines = text.split('\n');
+            const currentLine = lines.length;
+            const currentCol = lines[lines.length - 1].length;
+            
+            const top = Math.min((currentLine * 24) + 10 - codeInput.scrollTop, codeInput.clientHeight - 40);
+            const left = Math.min((currentCol * 8) + 50, codeInput.clientWidth - 150);
+
+            list.style.top = top + 'px';
+            list.style.left = left + 'px';
+            list.style.display = 'block';
+            
+            isAutocompleting = true;
+            currentSuggestionIndex = 0;
+        }
+
+        function insertAutocomplete(word, replaceLength) {
+            const start = codeInput.selectionStart;
+            const val = codeInput.value;
+            const newVal = val.substring(0, start - replaceLength) + word + val.substring(start);
+            codeInput.value = newVal;
+            codeInput.selectionStart = codeInput.selectionEnd = start - replaceLength + word.length;
+            updateEditor();
+            closeAutocomplete();
+        }
+
+        function closeAutocomplete() {
+            document.getElementById('autocompleteList').style.display = 'none';
+            isAutocompleting = false;
+        }
+
+        codeInput.addEventListener('input', () => {
+            if (isAutocompleting) showAutocomplete(); 
+        });
+        codeInput.addEventListener('click', closeAutocomplete);
 
         function changeLanguage() {
             const lang = langSelect.value;
@@ -378,8 +659,21 @@ print(f"Tổng là: {tong}")</textarea>
             lineNumbers.innerHTML = Array(lines).fill(0).map((_, i) => i + 1).join('<br>');
             let escapedText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
             if (escapedText[escapedText.length - 1] === "\n") escapedText += " "; 
+            
             codeHighlight.innerHTML = escapedText;
             Prism.highlightElement(codeHighlight);
+
+            const searchBox = document.getElementById('searchBox');
+            const searchInput = document.getElementById('searchInput');
+            if (searchBox && searchBox.style.display !== 'none' && searchInput.value) {
+                const regex = new RegExp(`(?![^<]*>)(${searchInput.value.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
+                let matchCount = 0;
+                codeHighlight.innerHTML = codeHighlight.innerHTML.replace(regex, (match) => {
+                    matchCount++;
+                    return `<mark class="search-match">${match}</mark>`;
+                });
+                document.getElementById('searchCount').innerText = matchCount;
+            }
         }
         
         function syncScroll() {
@@ -720,76 +1014,6 @@ print(f"Tổng là: {tong}")</textarea>
                 loader.style.display = 'none';
             }
         }
-
-        // --- LOGIC TẢI BÀI MẪU ---
-        const exampleSelect = document.getElementById('exampleSelect');
-
-        async function fetchExamples() {
-            try {
-                let response = await fetch('http://127.0.0.1:8000/api/examples').catch(() => fetch('https://predefine-pavement-zit.ngrok-free.dev/api/examples'));
-                if (!response || !response.ok) return;
-                
-                const data = await response.json();
-                if (data.error || Object.keys(data).length === 0) return;
-
-                for (const folder in data) {
-                    const optgroup = document.createElement('optgroup');
-                    optgroup.label = `📁 ${folder}`;
-                    data[folder].forEach(file => {
-                        const option = document.createElement('option');
-                        option.value = `${folder}/${file}`;
-                        option.textContent = file;
-                        optgroup.appendChild(option);
-                    });
-                    exampleSelect.appendChild(optgroup);
-                }
-            } catch (e) {
-                console.warn("Không thể tải danh sách bài mẫu.", e);
-            }
-        }
-
-        async function loadExample() {
-            const val = exampleSelect.value;
-            if (!val) return;
-            
-            try {
-                let response = await fetch(`http://127.0.0.1:8000/api/examples/${val}`).catch(() => fetch(`https://predefine-pavement-zit.ngrok-free.dev/api/examples/${val}`));
-                if (!response || !response.ok) throw new Error("Lỗi mạng");
-                
-                const data = await response.json();
-                if (data.error) {
-                    alert(data.error);
-                    return;
-                }
-
-                if (data.code !== undefined) {
-                    codeInput.value = data.code;
-                    
-                    if (val.endsWith('.cpp')) {
-                        langSelect.value = 'cpp';
-                        codeHighlight.className = 'language-cpp';
-                    } else if (val.endsWith('.py')) {
-                        langSelect.value = 'python';
-                        codeHighlight.className = 'language-python';
-                    }
-                    
-                    stdInput.value = "";
-                    updateEditor();
-                    
-                    globalTraceData = [];
-                    currentStepIndex = 0;
-                    consoleOutput.innerHTML = '';
-                    visualizerArea.innerHTML = '<div style="color:#8b949e; font-size:13px; text-align:center; margin-top:40px;">Đã tải bài mẫu. Bấm "Chạy Code" để xem.</div>';
-                    activeLine.style.display = 'none';
-                    prevLine.style.display = 'none';
-                    document.getElementById('errorLine').style.display = 'none';
-                }
-            } catch (e) {
-                alert("Lỗi tải mã nguồn bài mẫu: " + e.message);
-            }
-        }
-
-        window.addEventListener('DOMContentLoaded', fetchExamples);
     </script>
 </body>
 </html>
