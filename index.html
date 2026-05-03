@@ -149,6 +149,29 @@
         .icon-variable { background: #007acc; color: white; } 
         .suggest-text { flex: 1; }
         .suggest-match { color: #569cd6; font-weight: bold; }
+
+        /* --- ANIMATIONS CHO BIẾN --- */
+        @keyframes popNew {
+            0% { opacity: 0; transform: translateY(10px) scale(0.8); }
+            70% { transform: translateY(-2px) scale(1.05); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        
+        @keyframes highlightUpdate {
+            0% { transform: scale(1); background-color: var(--block-bg); box-shadow: 0 0 0 rgba(255, 193, 7, 0); }
+            30% { transform: scale(1.15); background-color: #fff3cd; border-color: #ffe69c; color: #664d03; box-shadow: 0 4px 12px rgba(255, 193, 7, 0.4); }
+            100% { transform: scale(1); background-color: var(--block-bg); box-shadow: 0 0 0 rgba(255, 193, 7, 0); }
+        }
+
+        .var-new { animation: popNew 0.5s ease-out forwards; }
+        
+        .var-updated .var-block, .var-updated .var-obj-box { 
+            animation: highlightUpdate 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; 
+        }
+        .var-updated .var-name {
+            color: #d9534f; 
+            transition: color 0.3s;
+        }
     </style>
 </head>
 <body>
@@ -176,14 +199,17 @@
 
             <button id="btnToggleVis" class="btn-toggle-vis" onclick="toggleVisualizer()" title="Bật/tắt bảng Visualizer">Ẩn Visualizer</button>
 
-            <button onclick="toggleDebug()" title="Cài đặt biến">⚙</button>
-            <select id="langSelect" onchange="changeLanguage()">
+            <button onclick="toggleDebug()" title="Cài đặt hiển thị biến">⚙</button>
+            
+            <select id="langSelect" onchange="changeLanguage()" title="Chọn ngôn ngữ lập trình">
                 <option value="python">Python 3</option>
                 <option value="cpp">C++ (GDB)</option>
             </select>
-            <button id="prevBtn" onclick="prevStep()" disabled>⏮</button>
-            <button id="nextBtn" onclick="nextStep()" disabled>⏭</button>
-            <button id="runBtn" class="btn-run" onclick="runCode()">▶ Chạy Code</button>
+            
+            <button id="prevBtn" onclick="prevStep()" disabled title="Lùi lại 1 bước (Ctrl + ←)">⏮</button>
+            <button id="nextBtn" onclick="nextStep()" disabled title="Tiếp tục 1 bước (Ctrl + →)">⏭</button>
+            
+            <button id="runBtn" class="btn-run" onclick="runCode()" title="Biên dịch và chạy mô phỏng">▶ Chạy Code</button>
         </div>
     </div>
 
@@ -369,7 +395,7 @@ print(f"Tổng là: {tong}")</textarea>
                 return;
             }
 
-            if (e.ctrlKey && e.code === 'Space') {
+            if ((e.ctrlKey || e.metaKey) && e.code === 'Space') {
                 e.preventDefault();
                 showAutocomplete(true);
                 return;
@@ -814,9 +840,11 @@ print(f"Tổng là: {tong}")</textarea>
 
         function renderStep(index) {
             const step = globalTraceData[index];
+            const prevStep = index > 0 ? globalTraceData[index - 1] : null; 
+            
             if (!step) return;
 
-            renderMemory(step);
+            renderMemory(step, prevStep); 
 
             activeLine.style.display = 'block';
             updateArrowPosition();
@@ -833,9 +861,23 @@ print(f"Tổng là: {tong}")</textarea>
         }
 
         // --- RENDER GIAO DIỆN CALL STACK ---
-        function renderMemory(step) {
+        // Thêm tham số prevStep
+        function renderMemory(step, prevStep) {
             visualizerArea.innerHTML = '';
             let hasData = false;
+
+            // BƯỚC 1: Lập bản đồ (Map) các biến của bước trước để so sánh
+            let prevVarsMap = {};
+            if (prevStep) {
+                if (prevStep.globalsSnapshot) {
+                    Object.entries(prevStep.globalsSnapshot).forEach(([k, v]) => prevVarsMap['global_' + k] = JSON.stringify(v));
+                }
+                if (prevStep.callStackSnapshot) {
+                    prevStep.callStackSnapshot.forEach(frame => {
+                        Object.entries(frame.vars).forEach(([k, v]) => prevVarsMap[frame.funcName + '_' + k] = JSON.stringify(v));
+                    });
+                }
+            }
 
             const createFrameUI = (title, varsObj, isGlobal) => {
                 const entries = Object.entries(varsObj || {}).filter(([k]) => !k.startsWith('__') && visibleVariables.has(k));
@@ -865,6 +907,17 @@ print(f"Tổng là: {tong}")</textarea>
                     const row = document.createElement('div');
                     row.className = 'var-row';
                     
+                    // --- THUẬT TOÁN DIFFING ---
+                    const mapKey = (isGlobal ? 'global_' : title + '_') + k;
+                    const currentValStr = JSON.stringify(data);
+                    
+                    if (!prevVarsMap.hasOwnProperty(mapKey)) {
+                        row.classList.add('var-new'); // Biến mới xuất hiện
+                    } else if (prevVarsMap[mapKey] !== currentValStr) {
+                        row.classList.add('var-updated'); // Biến bị thay đổi giá trị
+                    }
+                    // --------------------------
+
                     const nameDiv = document.createElement('div');
                     nameDiv.className = 'var-name';
                     nameDiv.textContent = name;
@@ -907,10 +960,10 @@ print(f"Tổng là: {tong}")</textarea>
                             objBox.appendChild(empty);
                         } else {
                             subEntries.forEach(([key, val]) => {
-                                const row = document.createElement('div');
-                                row.className = 'var-obj-row';
-                                row.innerHTML = `<span class="var-obj-key">${key}:</span> <span class="var-obj-val">${val}</span>`;
-                                objBox.appendChild(row);
+                                const objRow = document.createElement('div');
+                                objRow.className = 'var-obj-row';
+                                objRow.innerHTML = `<span class="var-obj-key">${key}:</span> <span class="var-obj-val">${val}</span>`;
+                                objBox.appendChild(objRow);
                             });
                         }
                         valsDiv.appendChild(objBox);
@@ -1014,6 +1067,22 @@ print(f"Tổng là: {tong}")</textarea>
                 loader.style.display = 'none';
             }
         }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'ArrowRight') {
+                    e.preventDefault(); 
+                    if (!nextBtn.disabled) {
+                        nextStep();
+                    }
+                } else if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    if (!prevBtn.disabled) {
+                        prevStep();
+                    }
+                }
+            }
+        });
     </script>
 </body>
 </html>
