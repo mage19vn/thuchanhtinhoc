@@ -79,6 +79,8 @@
         .active-line { position: absolute; left: 0; right: 0; height: 24px; background: var(--hl-line-bg); border-left: 3px solid var(--hl-line-border); pointer-events: none; display: none; z-index: 1; transition: top 0.1s ease; }
         .active-line::before { content: "▶"; color: var(--hl-line-border); position: absolute; left: 6px; top: 2px; font-size: 10px; }
 
+        .error-line { position: absolute; left: 0; right: 0; height: 24px; background: rgba(220, 53, 69, 0.15); border-left: 3px solid #dc3545; pointer-events: none; display: none; z-index: 1; transition: top 0.1s ease; }
+        .error-line::before { content: "➤"; color: #dc3545; position: absolute; left: 4px; top: 2px; font-size: 12px; }
         /* --- I/O AREA --- */
         .io-wrapper { flex: 1; display: flex; gap: 20px; min-height: 200px; }
         .io-pane { flex: 1; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; display: flex; flex-direction: column; box-shadow: var(--shadow-card); overflow: hidden; }
@@ -176,6 +178,7 @@
                 <div class="textarea-wrapper">
                     <div id="prevLine" class="prev-line"></div>
                     <div id="activeLine" class="active-line"></div>
+                    <div id="errorLine" class="error-line"></div>
                     <pre id="highlightLayer" aria-hidden="true"><code class="language-python" id="codeHighlight"></code></pre>
                     <textarea id="codeInput" spellcheck="false" oninput="updateEditor()" onscroll="syncScroll()">
 print("Chương trình tính tổng 2 số")
@@ -232,6 +235,7 @@ print(f"Tổng là: {tong}")</textarea>
         let currentStepIndex = 0;
         let isDebugOpen = false;
         let visibleVariables = new Set();
+        let currentErrorLine = -1;
 
         let isVisualizerVisible = true;
         let isActiveLineVisible = true;
@@ -242,19 +246,37 @@ print(f"Tổng là: {tong}")</textarea>
             const paneRight = document.querySelector('.pane-right');
             const workspace = document.querySelector('.workspace'); 
             const btnToggleVis = document.getElementById('btnToggleVis');
+            const btnToggleActive = document.getElementById('btnToggleActive');
+            const btnTogglePrev = document.getElementById('btnTogglePrev');
 
             if (isVisualizerVisible) {
                 paneRight.style.display = 'flex'; 
                 workspace.classList.remove('hide-vis'); 
                 btnToggleVis.innerHTML = 'Ẩn Visualizer';
+
+                if (isActiveLineVisible) {
+                    activeLine.classList.remove('hide-line');
+                    btnToggleActive.classList.remove('disabled');
+                }
+                if (isPrevLineVisible) {
+                    prevLine.classList.remove('hide-line');
+                    btnTogglePrev.classList.remove('disabled');
+                }
             } else {
                 paneRight.style.display = 'none'; 
                 workspace.classList.add('hide-vis');
                 btnToggleVis.innerHTML = 'Hiện Visualizer';
+
+                activeLine.classList.add('hide-line');
+                prevLine.classList.add('hide-line');
+                btnToggleActive.classList.add('disabled');
+                btnTogglePrev.classList.add('disabled');
             }
         }
 
         function toggleActiveLine() {
+            if (!isVisualizerVisible) return; 
+
             isActiveLineVisible = !isActiveLineVisible;
             const btn = document.getElementById('btnToggleActive');
             if (isActiveLineVisible) {
@@ -267,6 +289,8 @@ print(f"Tổng là: {tong}")</textarea>
         }
 
         function togglePrevLine() {
+            if (!isVisualizerVisible) return; 
+
             isPrevLineVisible = !isPrevLineVisible;
             const btn = document.getElementById('btnTogglePrev');
             if (isPrevLineVisible) {
@@ -363,6 +387,15 @@ print(f"Tổng là: {tong}")</textarea>
         }
 
         function updateArrowPosition() {
+            const errorLineEl = document.getElementById('errorLine');
+            if (currentErrorLine > 0) {
+                const errTopPos = 15 + ((currentErrorLine - 1) * 24) - codeInput.scrollTop;
+                errorLineEl.style.top = errTopPos + 'px';
+                errorLineEl.style.display = 'block';
+            } else {
+                errorLineEl.style.display = 'none';
+            }
+
             if (globalTraceData.length > 0 && currentStepIndex >= 0) {
                 const current_line_num = globalTraceData[currentStepIndex].line;
                 const topPos = 15 + ((current_line_num - 1) * 24) - codeInput.scrollTop;
@@ -430,13 +463,11 @@ print(f"Tổng là: {tong}")</textarea>
             globalOutput = fullOutput || "";
             currentStepIndex = 0;
             
-            // Xây dựng Ngăn xếp (Call Stack) cho từng bước
             let simulatedStack = [];
             globalTraceData.forEach(step => {
                 let stepGlobals = {};
                 let stepLocals = {};
 
-                // Phân loại Global và Local
                 if (step.vars) {
                     Object.entries(step.vars).forEach(([k, v]) => {
                         if (k.startsWith('[Global] ')) {
@@ -447,25 +478,23 @@ print(f"Tổng là: {tong}")</textarea>
                     });
                 }
 
-                // Logic tạo Stack
                 if (simulatedStack.length === 0) {
                     if (step.func_name) simulatedStack.push({ funcName: step.func_name, vars: stepLocals });
                 } else {
                     let topFrame = simulatedStack[simulatedStack.length - 1];
                     if (topFrame.funcName === step.func_name) {
-                        topFrame.vars = stepLocals; // Vẫn ở hàm cũ -> update biến
+                        topFrame.vars = stepLocals; 
                     } else {
                         let existingIndex = simulatedStack.findIndex(f => f.funcName === step.func_name);
                         if (existingIndex !== -1) {
-                            simulatedStack = simulatedStack.slice(0, existingIndex + 1); // Trở về hàm cha -> Pop
+                            simulatedStack = simulatedStack.slice(0, existingIndex + 1); 
                             simulatedStack[simulatedStack.length - 1].vars = stepLocals;
                         } else {
-                            simulatedStack.push({ funcName: step.func_name, vars: stepLocals }); // Gọi hàm mới -> Push
+                            simulatedStack.push({ funcName: step.func_name, vars: stepLocals });
                         }
                     }
                 }
 
-                // Deep copy để lưu trạng thái Frame tại Step này
                 step.callStackSnapshot = JSON.parse(JSON.stringify(simulatedStack));
                 step.globalsSnapshot = JSON.parse(JSON.stringify(stepGlobals));
             });
@@ -511,7 +540,6 @@ print(f"Tổng là: {tong}")</textarea>
             visualizerArea.innerHTML = '';
             let hasData = false;
 
-            // Hàm phụ để vẽ từng Frame (Card)
             const createFrameUI = (title, varsObj, isGlobal) => {
                 const entries = Object.entries(varsObj || {}).filter(([k]) => !k.startsWith('__') && visibleVariables.has(k));
                 
@@ -532,7 +560,7 @@ print(f"Tổng là: {tong}")</textarea>
                     hasData = true;
                     return;
                 } else if (entries.length === 0 && isGlobal) {
-                    return; // Ẩn Global nếu không có biến
+                    return; 
                 }
 
                 for (const [k, data] of entries) {
@@ -605,12 +633,10 @@ print(f"Tổng là: {tong}")</textarea>
                 hasData = true;
             };
 
-            // 1. Render khung biến Global (Chỉ hiện nếu có)
             if (step.globalsSnapshot) {
                 createFrameUI('', step.globalsSnapshot, true);
             }
 
-            // 2. Render Call Stack (Từ dưới lên)
             if (step.callStackSnapshot && step.callStackSnapshot.length > 0) {
                 step.callStackSnapshot.forEach(frame => {
                     createFrameUI(frame.funcName, frame.vars, false);
@@ -645,6 +671,8 @@ print(f"Tổng là: {tong}")</textarea>
             visualizerArea.innerHTML = '';
             runBtn.disabled = true;
             loader.style.display = 'inline-block';
+            currentErrorLine = -1;
+            updateArrowPosition();
 
             try {
                 const fetchOptions = {
@@ -670,6 +698,12 @@ print(f"Tổng là: {tong}")</textarea>
                     printToConsole("[" + lang.toUpperCase() + " Error] " + result.error, "error");
                     runBtn.disabled = false;
                     activeLine.style.display = 'none';
+                    prevLine.style.display = 'none';
+
+                    if (result.error_line && result.error_line > 0) {
+                        currentErrorLine = result.error_line;
+                        updateArrowPosition();
+                    }
                     return;
                 }
 
@@ -682,6 +716,8 @@ print(f"Tổng là: {tong}")</textarea>
             } finally {
                 loader.style.display = 'none';
             }
+
+
         }
     </script>
 </body>

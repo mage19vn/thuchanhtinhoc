@@ -87,6 +87,14 @@ except EOFError:
     error_msg = "Lỗi: Chương trình yêu cầu nhập dữ liệu (input) nhưng bạn chưa cung cấp đủ đầu vào."
 except Exception as e:
     error_msg = traceback.format_exc().splitlines()[-1]
+    tb = traceback.extract_tb(e.__traceback__)
+    error_line = -1
+    for frame in reversed(tb):
+        if frame.filename == "main.py":
+            error_line = frame.lineno
+            break
+    with open("error_line.txt", "w", encoding="utf-8") as f:
+        f.write(str(error_line))
 finally:
     sys.settrace(None)
     sys.stdout = old_stdout
@@ -137,10 +145,18 @@ if error_msg:
             with open(error_txt_path, "r", encoding="utf-8") as f:
                 error_result = f.read()
 
+        error_line_result = -1
+        err_line_path = os.path.join(temp_dir, "error_line.txt")
+        if os.path.exists(err_line_path):
+            with open(err_line_path, "r", encoding="utf-8") as f:
+                try: error_line_result = int(f.read().strip())
+                except: pass
+
         return {
             "trace": trace_result,
             "output": output_result,
-            "error": error_result
+            "error": error_result,
+            "error_line": error_line_result 
         }
 
 # --- LOGIC XỬ LÝ C++ ---
@@ -171,7 +187,12 @@ def trace_cpp(code: str, inputs: str):
         )
         
         if compile_process.returncode != 0:
-            return {"trace": [], "output": "", "error": "Lỗi biên dịch:\n" + compile_process.stderr}
+            import re
+            err_line = -1
+            match = re.search(r'main\.cpp:(\d+):', compile_process.stderr)
+            if match:
+                err_line = int(match.group(1))
+            return {"trace": [], "output": "", "error": "Lỗi biên dịch:\n" + compile_process.stderr, "error_line": err_line}
 
         # KỊCH BẢN GDB PYTHON (TỐI ƯU HÓA TỐC ĐỘ VÀ BẮT GLOBAL VARS)
         gdb_script = """
@@ -334,7 +355,8 @@ with open("trace.json", "w") as f:
         return {
             "trace": trace_result,
             "output": output_result.replace("\\n", "\n"),
-            "error": error_msg
+            "error": error_msg,
+            "error_line": -1 
         }
 
 # --- API ENDPOINT ---
