@@ -74,13 +74,13 @@
         textarea#codeInput { position: absolute; top: 0; left: 0; width: 100%; height: 100%; padding: 15px 10px; border: none; background: transparent; color: transparent; caret-color: var(--text-main); font-family: var(--font-code); font-size: 14px; line-height: 24px; resize: none; outline: none; white-space: pre; overflow: auto; z-index: 2; }
         textarea#codeInput::selection { background: rgba(0, 123, 255, 0.2); color: transparent; }
         .prev-line { position: absolute; left: 0; right: 0; height: 24px; background: rgba(35, 134, 54, 0.1); border-left: 3px solid #238636; pointer-events: none; display: none; z-index: 1; transition: top 0.1s ease; }
-        .prev-line::before { content: ">"; color: #238636; position: absolute; left: 6px; top: 2px; font-size: 10px; font-weight: bold; }
+        .prev-line::before { content: ""; color: #238636; position: absolute; left: 6px; top: 2px; font-size: 10px; font-weight: bold; }
         
         .active-line { position: absolute; left: 0; right: 0; height: 24px; background: var(--hl-line-bg); border-left: 3px solid var(--hl-line-border); pointer-events: none; display: none; z-index: 1; transition: top 0.1s ease; }
-        .active-line::before { content: "▶"; color: var(--hl-line-border); position: absolute; left: 6px; top: 2px; font-size: 10px; }
+        .active-line::before { content: ""; color: var(--hl-line-border); position: absolute; left: 6px; top: 2px; font-size: 10px; }
 
         .error-line { position: absolute; left: 0; right: 0; height: 24px; background: rgba(220, 53, 69, 0.15); border-left: 3px solid #dc3545; pointer-events: none; display: none; z-index: 1; transition: top 0.1s ease; }
-        .error-line::before { content: "➤"; color: #dc3545; position: absolute; left: 4px; top: 2px; font-size: 12px; }
+        .error-line::before { content: ""; color: #dc3545; position: absolute; left: 4px; top: 2px; font-size: 12px; }
         /* --- I/O AREA --- */
         .io-wrapper { flex: 1; display: flex; gap: 20px; min-height: 200px; }
         .io-pane { flex: 1; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; display: flex; flex-direction: column; box-shadow: var(--shadow-card); overflow: hidden; }
