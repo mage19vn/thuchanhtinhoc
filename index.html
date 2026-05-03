@@ -161,6 +161,9 @@
             <button id="btnToggleVis" class="btn-toggle-vis" onclick="toggleVisualizer()" title="Bật/tắt bảng Visualizer">Ẩn Visualizer</button>
 
             <button onclick="toggleDebug()" title="Cài đặt biến">⚙</button>
+            <select id="exampleSelect" onchange="loadExample()">
+                <option value="">-- Bài mẫu --</option>
+            </select>
             <select id="langSelect" onchange="changeLanguage()">
                 <option value="python">Python 3</option>
                 <option value="cpp">C++ (GDB)</option>
@@ -716,9 +719,77 @@ print(f"Tổng là: {tong}")</textarea>
             } finally {
                 loader.style.display = 'none';
             }
-
-
         }
+
+        // --- LOGIC TẢI BÀI MẪU ---
+        const exampleSelect = document.getElementById('exampleSelect');
+
+        async function fetchExamples() {
+            try {
+                let response = await fetch('http://127.0.0.1:8000/api/examples').catch(() => fetch('https://predefine-pavement-zit.ngrok-free.dev/api/examples'));
+                if (!response || !response.ok) return;
+                
+                const data = await response.json();
+                if (data.error || Object.keys(data).length === 0) return;
+
+                for (const folder in data) {
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = `📁 ${folder}`;
+                    data[folder].forEach(file => {
+                        const option = document.createElement('option');
+                        option.value = `${folder}/${file}`;
+                        option.textContent = file;
+                        optgroup.appendChild(option);
+                    });
+                    exampleSelect.appendChild(optgroup);
+                }
+            } catch (e) {
+                console.warn("Không thể tải danh sách bài mẫu.", e);
+            }
+        }
+
+        async function loadExample() {
+            const val = exampleSelect.value;
+            if (!val) return;
+            
+            try {
+                let response = await fetch(`http://127.0.0.1:8000/api/examples/${val}`).catch(() => fetch(`https://predefine-pavement-zit.ngrok-free.dev/api/examples/${val}`));
+                if (!response || !response.ok) throw new Error("Lỗi mạng");
+                
+                const data = await response.json();
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+
+                if (data.code !== undefined) {
+                    codeInput.value = data.code;
+                    
+                    if (val.endsWith('.cpp')) {
+                        langSelect.value = 'cpp';
+                        codeHighlight.className = 'language-cpp';
+                    } else if (val.endsWith('.py')) {
+                        langSelect.value = 'python';
+                        codeHighlight.className = 'language-python';
+                    }
+                    
+                    stdInput.value = "";
+                    updateEditor();
+                    
+                    globalTraceData = [];
+                    currentStepIndex = 0;
+                    consoleOutput.innerHTML = '';
+                    visualizerArea.innerHTML = '<div style="color:#8b949e; font-size:13px; text-align:center; margin-top:40px;">Đã tải bài mẫu. Bấm "Chạy Code" để xem.</div>';
+                    activeLine.style.display = 'none';
+                    prevLine.style.display = 'none';
+                    document.getElementById('errorLine').style.display = 'none';
+                }
+            } catch (e) {
+                alert("Lỗi tải mã nguồn bài mẫu: " + e.message);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', fetchExamples);
     </script>
 </body>
 </html>
