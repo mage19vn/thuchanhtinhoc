@@ -248,6 +248,14 @@ def trace_cpp(code: str, inputs: str):
             capture_output=True, text=True
         )
         
+        if compile_process.returncode != 0:
+            import re
+            err_line = -1
+            match = re.search(r'main\.cpp:(\d+):', compile_process.stderr)
+            if match:
+                err_line = int(match.group(1))
+            return {"trace": [], "output": "", "error": "Lỗi biên dịch:\n" + compile_process.stderr, "error_line": err_line}
+
         import time
         time_ms = 0.0
         memory_kb = 0.0 
@@ -271,13 +279,6 @@ def trace_cpp(code: str, inputs: str):
         except subprocess.TimeoutExpired:
             return {"trace": [], "output": "", "error": "Lỗi: Chương trình C++ chạy quá 2 giây (Time Limit Exceeded).", "error_line": -1}
         
-        if compile_process.returncode != 0:
-            import re
-            err_line = -1
-            match = re.search(r'main\.cpp:(\d+):', compile_process.stderr)
-            if match:
-                err_line = int(match.group(1))
-            return {"trace": [], "output": "", "error": "Lỗi biên dịch:\n" + compile_process.stderr, "error_line": err_line}
 
         gdb_script = """
 import gdb
