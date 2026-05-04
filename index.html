@@ -179,7 +179,7 @@
         @media screen and (max-width: 768px) {
             body {
                 height: auto;
-                overflow: auto; /* Cho phép cuộn trang trên mobile */
+                overflow: auto; 
             }
 
             .header {
@@ -208,7 +208,6 @@
                 overflow: visible;
             }
 
-            /* Đảo vị trí: Đưa Visualizer (pane-right) lên trên cùng */
             .pane-right {
                 order: 1;
                 flex: none;
@@ -216,7 +215,6 @@
                 min-height: 400px;
             }
 
-            /* Đẩy khung Code và I/O (pane-left) xuống phía dưới */
             .pane-left {
                 order: 2;
                 flex: none;
@@ -238,7 +236,6 @@
                 min-height: 150px;
             }
 
-            /* Ghi đè lại flex-row khi ẩn visualizer trên mobile */
             .workspace.hide-vis .pane-left {
                 flex-direction: column; 
             }
