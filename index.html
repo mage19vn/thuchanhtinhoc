@@ -152,6 +152,15 @@
         .suggest-text { flex: 1; }
         .suggest-match { color: #569cd6; font-weight: bold; }
 
+        /* --- METRICS BAR --- */
+        .metrics-bar {
+            display: flex; gap: 20px; padding: 8px 24px; background: #fdfdfd; 
+            border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text-muted);
+            justify-content: flex-end;
+        }
+        .metrics-bar span { display: flex; align-items: center; gap: 5px; }
+        .metrics-value { font-weight: bold; color: var(--text-main); font-family: var(--font-code); }
+
         /* --- ANIMATIONS CHO BIẾN --- */
         @keyframes popNew {
             0% { opacity: 0; transform: translateY(10px) scale(0.8); }
@@ -311,6 +320,11 @@
             
             <button id="runBtn" class="btn-run" onclick="runCode()" title="Biên dịch và chạy mô phỏng (Ctrl + Enter)">▶ Chạy Code</button>
         </div>
+    </div>
+
+    <div class="metrics-bar">
+        <span>⏱ Thời gian chạy: <span id="timeMetric" class="metrics-value">0.00</span> ms</span>
+        <span>💾 Bộ nhớ: <span id="memMetric" class="metrics-value">0.00</span> KB</span>
     </div>
 
     <div class="workspace">
@@ -1143,6 +1157,14 @@ print(f"Tổng là: {tong}")</textarea>
                 }
 
                 const result = await response.json();
+
+                if (result.time_ms !== undefined) {
+                    document.getElementById('timeMetric').innerText = result.time_ms.toFixed(2);
+                    document.getElementById('memMetric').innerText = result.memory_kb.toFixed(2);
+                } else {
+                    document.getElementById('timeMetric').innerText = "0.00";
+                    document.getElementById('memMetric').innerText = "0.00";
+                }
 
                 if (result.error) {
                     printToConsole("[" + lang.toUpperCase() + " Error] " + result.error, "error");

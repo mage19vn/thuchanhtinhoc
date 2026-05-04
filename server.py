@@ -68,6 +68,12 @@ import sys
 import io
 import json
 import traceback
+import time
+import tracemalloc
+
+# Bắt đầu đo lường
+tracemalloc.start()
+start_time = time.perf_counter()
 
 trace_log = []
 output_buffer = io.StringIO()
@@ -129,6 +135,17 @@ except Exception as e:
 finally:
     sys.settrace(None)
     sys.stdout = old_stdout
+    
+end_time = time.perf_counter()
+current, peak_memory = tracemalloc.get_traced_memory()
+tracemalloc.stop()
+
+metrics = {
+    "time_ms": round((end_time - start_time) * 1000, 2),
+    "memory_kb": round(peak_memory / 1024, 2)
+}
+with open("metrics.json", "w", encoding="utf-8") as f:
+    json.dump(metrics, f)
 
 with open("trace.json", "w", encoding="utf-8") as f:
     json.dump(trace_log, f)
@@ -184,11 +201,24 @@ if error_msg:
                 try: error_line_result = int(f.read().strip())
                 except: pass
 
+        time_ms = 0
+        memory_kb = 0
+        metrics_path = os.path.join(temp_dir, "metrics.json")
+        if os.path.exists(metrics_path):
+            with open(metrics_path, "r", encoding="utf-8") as f:
+                try: 
+                    m = json.load(f)
+                    time_ms = m.get("time_ms", 0)
+                    memory_kb = m.get("memory_kb", 0)
+                except: pass
+
         return {
             "trace": trace_result,
             "output": output_result,
             "error": error_result,
-            "error_line": error_line_result 
+            "error_line": error_line_result,
+            "time_ms": time_ms,
+            "memory_kb": memory_kb
         }
 
 # --- LOGIC XỬ LÝ C++ ---
@@ -217,6 +247,29 @@ def trace_cpp(code: str, inputs: str):
             cwd=temp_dir,
             capture_output=True, text=True
         )
+        
+        import time
+        time_ms = 0.0
+        memory_kb = 0.0 
+        
+        exe_path = os.path.join(temp_dir, exe_name)
+        if os.name != 'nt':
+            exe_path = "./" + exe_name
+            
+        start_time = time.perf_counter()
+        try:
+            exec_process = subprocess.run(
+                [exe_path],
+                cwd=temp_dir,
+                input=inputs,
+                timeout=2, 
+                capture_output=True, text=True,
+                preexec_fn=set_resource_limits if os.name != 'nt' else None 
+            )
+            end_time = time.perf_counter()
+            time_ms = round((end_time - start_time) * 1000, 2)
+        except subprocess.TimeoutExpired:
+            return {"trace": [], "output": "", "error": "Lỗi: Chương trình C++ chạy quá 2 giây (Time Limit Exceeded).", "error_line": -1}
         
         if compile_process.returncode != 0:
             import re
@@ -348,14 +401,13 @@ with open("trace.json", "w") as f:
         with open(script_path, "w", encoding="utf-8") as f:
             f.write(gdb_script)
 
-        # Chạy GDB ngầm với Timeout 5s
         try:
             gdb_process = subprocess.run(
                 ["gdb", "--batch", "-x", "gdb_script.py", exe_name],
                 cwd=temp_dir,
                 timeout=5,  
                 capture_output=True, text=True,
-                preexec_fn=set_resource_limits # THÊM DÒNG NÀY VÀO ĐÂY
+                preexec_fn=set_resource_limits 
             )
         except subprocess.TimeoutExpired:
             return {"trace": [], "output": "", "error": "Chương trình C++ kẹt vòng lặp hoặc chờ nhập dữ liệu quá lâu."}
@@ -388,7 +440,9 @@ with open("trace.json", "w") as f:
             "trace": trace_result,
             "output": output_result.replace("\\n", "\n"),
             "error": error_msg,
-            "error_line": -1 
+            "error_line": -1,
+            "time_ms": time_ms,
+            "memory_kb": memory_kb 
         }
 
 # --- API ENDPOINT ---
