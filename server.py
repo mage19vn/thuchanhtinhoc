@@ -318,6 +318,7 @@ def get_user_global_vars():
     return globals_list
 
 try:
+    gdb.execute("set disable-randomization off")
     gdb.execute("set pagination off")
     gdb.execute("break main")
     gdb.execute("run < input.txt > output.txt")
