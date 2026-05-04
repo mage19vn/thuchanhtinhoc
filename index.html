@@ -174,6 +174,95 @@
             color: #d9534f; 
             transition: color 0.3s;
         }
+
+        /* --- BỔ SUNG CSS CHO DI ĐỘNG (MOBILE RESPONSIVE) --- */
+        @media screen and (max-width: 768px) {
+            body {
+                height: auto;
+                overflow: auto; /* Cho phép cuộn trang trên mobile */
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 12px;
+                padding: 12px;
+            }
+
+            .controls {
+                flex-wrap: wrap;
+                justify-content: center;
+                width: 100%;
+            }
+
+            .controls button, .controls select {
+                flex: 1 1 calc(33% - 10px);
+                justify-content: center;
+                padding: 8px 5px;
+            }
+
+            .workspace {
+                display: flex;
+                flex-direction: column;
+                padding: 10px;
+                height: auto;
+                overflow: visible;
+            }
+
+            /* Đảo vị trí: Đưa Visualizer (pane-right) lên trên cùng */
+            .pane-right {
+                order: 1;
+                flex: none;
+                width: 100%;
+                min-height: 400px;
+            }
+
+            /* Đẩy khung Code và I/O (pane-left) xuống phía dưới */
+            .pane-left {
+                order: 2;
+                flex: none;
+                width: 100%;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .editor-container {
+                min-height: 350px; 
+            }
+
+            .io-wrapper {
+                flex-direction: column;
+                min-height: auto;
+            }
+
+            .io-pane {
+                min-height: 150px;
+            }
+
+            /* Ghi đè lại flex-row khi ẩn visualizer trên mobile */
+            .workspace.hide-vis .pane-left {
+                flex-direction: column; 
+            }
+            .workspace.hide-vis .io-wrapper {
+                flex-direction: column;
+            }
+
+            .modal {
+                width: 90%;
+                max-width: 350px;
+            }
+
+            .search-box {
+                top: 40px; 
+                right: 10px;
+                left: 10px;
+                justify-content: space-between;
+            }
+
+            .search-box input {
+                flex: 1;
+                width: auto;
+            }
+        }
     </style>
 </head>
 <body>
