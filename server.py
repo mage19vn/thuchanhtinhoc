@@ -235,19 +235,39 @@ def trace_cpp(code: str, inputs: str):
             
         start_time = time.perf_counter()
         try:
-            exec_process = subprocess.run(
-                [exe_path],
-                cwd=temp_dir,
-                input=inputs,
-                timeout=2, 
-                capture_output=True, text=True,
-                preexec_fn=set_resource_limits if HAS_RESOURCE and os.name != 'nt' else None
-            )
+            if HAS_RESOURCE and os.name != 'nt':
+                try:
+                    exec_process = subprocess.run(
+                        ["/usr/bin/time", "-f", "%M", exe_path],
+                        cwd=temp_dir,
+                        input=inputs,
+                        timeout=2, 
+                        capture_output=True, text=True,
+                        preexec_fn=set_resource_limits
+                    )
+                    if exec_process.stderr:
+                        lines = exec_process.stderr.strip().split('\n')
+                        try:
+                            memory_kb = float(lines[-1])
+                            exec_process.stderr = '\n'.join(lines[:-1]) 
+                        except ValueError:
+                            pass
+                except FileNotFoundError:
+                    exec_process = subprocess.run(
+                        [exe_path], cwd=temp_dir, input=inputs, timeout=2, 
+                        capture_output=True, text=True, preexec_fn=set_resource_limits
+                    )
+            else:
+                exec_process = subprocess.run(
+                    [exe_path], cwd=temp_dir, input=inputs, timeout=2, 
+                    capture_output=True, text=True
+                )
+                
             end_time = time.perf_counter()
             time_ms = round((end_time - start_time) * 1000, 2)
+            
         except subprocess.TimeoutExpired:
             return {"trace": [], "output": "", "error": "Lỗi: Chương trình C++ chạy quá 2 giây (Time Limit Exceeded).", "error_line": -1, "time_ms": 2000.0, "memory_kb": 0.0}
-
         gdb_script = """
 import gdb
 import json
