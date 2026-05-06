@@ -169,6 +169,50 @@ mark.search-match { background: rgba(255, 235, 59, 0.4); color: inherit; border-
     transition: color 0.3s;
 }
 
+.btn-report {
+    background: rgba(217, 83, 79, 0.1);
+    color: var(--text-accent);
+    border: 1px solid var(--text-accent); 
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    text-decoration: none;
+    transition: 0.2s;
+}
+
+.btn-report:hover {
+    background: var(--text-accent);
+    color: #ffffff;
+}
+
+footer {
+    background-color: var(--bg-panel); 
+    border-top: 1px solid var(--border); 
+    padding: 12px 24px;
+    font-size: 13px;
+    color: var(--text-muted);
+    flex-shrink: 0; 
+    z-index: 10;
+}
+
+.footer-content {
+    display: flex;
+    justify-content: space-between; 
+    align-items: center;
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+    font-weight: 500;
+}
+
+.footer-content span:last-child {
+    color: var(--text-main);
+}
+
 /* --- BỔ SUNG CSS CHO DI ĐỘNG (MOBILE RESPONSIVE) --- */
 @media screen and (max-width: 768px) {
     body {
@@ -252,5 +296,12 @@ mark.search-match { background: rgba(255, 235, 59, 0.4); color: inherit; border-
     .search-box input {
         flex: 1;
         width: auto;
+    }
+
+    .footer-content {
+        flex-direction: column; 
+        gap: 8px;
+        text-align: center;
+        justify-content: center;
     }
 }

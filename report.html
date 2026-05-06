@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report Bug - Unicorns Code Visualizer</title>
+    <!-- Import lại file CSS chung để đồng bộ màu sắc -->
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* CSS riêng để căn giữa form báo lỗi */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-base);
+            height: 100vh;
+            margin: 0;
+        }
+        
+        .report-container {
+            background: var(--bg-panel);
+            padding: 30px 40px;
+            border-radius: 10px;
+            box-shadow: var(--shadow-card);
+            width: 100%;
+            max-width: 500px;
+            border: 1px solid var(--border);
+        }
+
+        .report-container h2 {
+            margin-bottom: 20px;
+            color: var(--text-main);
+            font-size: 22px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-group label {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .form-group input, .form-group textarea {
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-family: var(--font-ui);
+            font-size: 14px;
+            background: #fafafa;
+            color: var(--text-main);
+            outline: none;
+            transition: border 0.2s;
+        }
+
+        .form-group input:focus, .form-group textarea:focus {
+            border-color: var(--text-accent);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .btn-submit {
+            background: var(--text-accent);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+            font-size: 14px;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+
+        .btn-submit:hover {
+            background: #c9302c; /* Màu đỏ đậm hơn khi hover */
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-top: 15px;
+            font-size: 13px;
+            color: var(--text-muted);
+            text-decoration: none;
+            text-align: center;
+            width: 100%;
+        }
+
+        .back-link:hover {
+            color: var(--text-main);
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="report-container">
+        <h2>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            Báo cáo lỗi (Bug Report)
+        </h2>
+        
+        <!-- Form hiện tại đang giả lập gửi (hiển thị popup rồi quay lại). Bạn có thể đổi thẻ action thành link Webhook / API sau. -->
+        <form action="#" method="POST" onsubmit="alert('Cảm ơn bạn! Lỗi đã được ghi nhận.'); window.location.href='index.html'; return false;">
+            <div class="form-group">
+                <label for="name">Tên / Email liên hệ (Tùy chọn)</label>
+                <input type="text" id="name" placeholder="Để lại info để Unicorns Team liên hệ lại...">
+            </div>
+            
+            <div class="form-group">
+                <label for="bug-title">Tiêu đề lỗi *</label>
+                <input type="text" id="bug-title" required placeholder="VD: Bảng Visualizer không hiện biến...">
+            </div>
+            
+            <div class="form-group">
+                <label for="bug-desc">Mô tả chi tiết *</label>
+                <textarea id="bug-desc" required placeholder="Bạn đã thao tác như thế nào trước khi gặp lỗi? Code bạn chạy là gì?"></textarea>
+            </div>
+            
+            <button type="submit" class="btn-submit">Gửi báo cáo</button>
+            <a href="index.html" class="back-link">← Quay lại trang Code Visualizer</a>
+        </form>
+    </div>
+
+</body>
+</html>
