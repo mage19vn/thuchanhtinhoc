@@ -9,6 +9,7 @@ import re
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import ast
 
 try:
     import resource
@@ -17,14 +18,55 @@ except ImportError:
     HAS_RESOURCE = False
 
 def is_safe_python_code(code: str) -> str:
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return "Lỗi cú pháp Python."
+
+    forbidden_modules = {'os', 'sys', 'subprocess', 'pty', 'socket', 'urllib', 'requests', 'importlib', 'builtins'}
+    forbidden_functions = {'eval', 'exec', 'open', '__import__', 'compile', 'globals', 'locals', 'getattr', 'setattr', 'delattr'}
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name.split('.')[0] in forbidden_modules:
+                    return f"Bảo mật: Không được phép import module '{alias.name}'"
+        
+
+        elif isinstance(node, ast.ImportFrom):
+            if node.module and node.module.split('.')[0] in forbidden_modules:
+                return f"Bảo mật: Không được phép import từ module '{node.module}'"
+
+        elif isinstance(node, ast.Call):
+
+            if isinstance(node.func, ast.Name):
+                if node.func.id in forbidden_functions:
+                    return f"Bảo mật: Không được phép sử dụng hàm '{node.func.id}()'"
+
+            elif isinstance(node.func, ast.Attribute):
+                if node.func.attr in forbidden_functions:
+                    return f"Bảo mật: Không được phép gọi thuộc tính hoặc hàm '{node.func.attr}'"
+                    
+    return None
+
+def is_safe_cpp_code(code: str) -> str:
+    code_no_comments = re.sub(r'//.*|/\*[\s\S]*?\*/', '', code)
+
     forbidden_patterns = [
-        r"import\s+os", r"import\s+subprocess", r"import\s+sys", r"import\s+pty",
-        r"from\s+os", r"from\s+subprocess", r"from\s+sys",
-        r"__import__", r"eval\(", r"exec\(", r"open\("
+        r'#include\s*[<"]\s*cstdlib\s*[>"]', 
+        r'#include\s*[<"]\s*stdlib\.h\s*[>"]',
+        r'#include\s*[<"]\s*unistd\.h\s*[>"]', 
+        r'#include\s*[<"]\s*windows\.h\s*[>"]',
+        r'#include\s*[<"]\s*sys/socket\.h\s*[>"]', 
+        r'#include\s*[<"]\s*fstream\s*[>"]',
+        r'\bsystem\s*\(', r'\bpopen\s*\(', r'\bfork\s*\(', r'\bexec\w*\s*\(',
+        r'\bremove\s*\(', r'\brename\s*\('
     ]
+    
     for pattern in forbidden_patterns:
-        if re.search(pattern, code):
-            return "Phát hiện mã khả nghi. Lệnh này bị cấm vì lý do bảo mật."
+        if re.search(pattern, code_no_comments, re.IGNORECASE):
+            return "Bảo mật: Mã C++ chứa thư viện hoặc lệnh không an toàn (vd: system(), file I/O, network)."
+            
     return None
 
 def set_resource_limits():
@@ -53,6 +95,13 @@ class CodeRequest(BaseModel):
     inputs: str = ""
 
 def trace_python(code: str, inputs: str):
+    safe_env = {
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin:/usr/local/bin"),
+        "LANG": os.environ.get("LANG", "en_US.UTF-8")
+    }
+    if os.name == 'nt':
+        safe_env["SystemRoot"] = os.environ.get("SystemRoot", "C:\\Windows")
+        
     security_error = is_safe_python_code(code)
     if security_error:
         return {"trace": [], "output": "", "error": security_error}
@@ -69,6 +118,25 @@ import json
 import traceback
 import time
 import tracemalloc
+import builtins
+
+_stdin_content = sys.stdin.read()
+
+sys.stdin = io.StringIO(_stdin_content)
+
+_original_open = builtins.open
+
+def _mock_open(file, mode='r', *args, **kwargs):
+    allowed_system_files = ["main.py", "metrics.json", "trace.json", "output.txt", "error.txt", "error_line.txt"]
+    if file in allowed_system_files:
+        return _original_open(file, mode, *args, **kwargs)
+    
+    if 'r' in mode:
+        return io.StringIO(_stdin_content)
+    else:
+        raise PermissionError("Bảo mật: Hệ thống không cho phép ghi file.")
+
+builtins.open = _mock_open
 
 tracemalloc.start()
 start_time = time.perf_counter()
@@ -160,6 +228,7 @@ if error_msg:
                 input=inputs,
                 timeout=3,
                 capture_output=True, text=True,
+                env=safe_env,
                 preexec_fn=set_resource_limits if HAS_RESOURCE and os.name != 'nt' else None
             )
         except subprocess.TimeoutExpired:
@@ -201,6 +270,28 @@ if error_msg:
         }
 
 def trace_cpp(code: str, inputs: str):
+    safe_env = {
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin:/usr/local/bin"),
+        "LANG": os.environ.get("LANG", "en_US.UTF-8")
+    }
+    if os.name == 'nt':
+        safe_env["SystemRoot"] = os.environ.get("SystemRoot", "C:\\Windows")
+        
+    security_error = is_safe_cpp_code(code)
+    if security_error:
+        return {
+            "trace": [], 
+            "output": "", 
+            "error": security_error, 
+            "error_line": -1, 
+            "time_ms": 0.0, 
+            "memory_kb": 0.0
+        }
+        
+    code = re.sub(r'freopen\s*\(\s*["\'][^"\']+["\']\s*,\s*["\']r["\']\s*,\s*stdin\s*\)\s*;?', '', code)
+    code = re.sub(r'freopen\s*\(\s*["\'][^"\']+["\']\s*,\s*["\']w["\']\s*,\s*stdout\s*\)\s*;?', '', code)
+
+        
     with tempfile.TemporaryDirectory() as temp_dir:
         exe_name = "main.exe" if os.name == 'nt' else "main.out"
         cpp_name = "main.cpp"
@@ -216,7 +307,8 @@ def trace_cpp(code: str, inputs: str):
         compile_process = subprocess.run(
             ["g++", "-g", "-O0", cpp_name, "-o", exe_name],
             cwd=temp_dir,
-            capture_output=True, text=True
+            capture_output=True, text=True,
+            env=safe_env
         )
         
         if compile_process.returncode != 0:
@@ -241,6 +333,7 @@ def trace_cpp(code: str, inputs: str):
                         input=inputs,
                         timeout=2, 
                         capture_output=True, text=True,
+                        env=safe_env,
                         preexec_fn=set_resource_limits
                     )
                     if exec_process.stderr:
@@ -253,12 +346,14 @@ def trace_cpp(code: str, inputs: str):
                 except FileNotFoundError:
                     exec_process = subprocess.run(
                         [exe_path], cwd=temp_dir, input=inputs, timeout=2, 
+                        env=safe_env,
                         capture_output=True, text=True, preexec_fn=set_resource_limits
                     )
             else:
                 # Trên Windows (Localhost): Chạy bình thường
                 exec_process = subprocess.run(
                     [exe_path], cwd=temp_dir, input=inputs, timeout=2, 
+                    env=safe_env,
                     capture_output=True, text=True
                 )
                 
@@ -422,7 +517,8 @@ with open("trace.json", "w") as f:
                 ["gdb", "-nx", "-q", "--batch", "-x", "gdb_script.py", exe_name],
                 cwd=temp_dir,
                 timeout=5,  
-                capture_output=True, text=True
+                capture_output=True, text=True,
+                env=safe_env,
             )
         except subprocess.TimeoutExpired:
             return {"trace": [], "output": "", "error": "Chương trình C++ kẹt vòng lặp hoặc chờ GDB xử lý quá lâu.", "time_ms": time_ms, "memory_kb": memory_kb}

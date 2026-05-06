@@ -713,7 +713,7 @@ async function runCode() {
 
         let response;
         try {
-            response = await fetch('http://127.0.0.1:8000/api/visualize', fetchOptions);
+            response = await fetch('http://10.60.50.228:8000/api/visualize', fetchOptions);
         } catch (localErr) {
             response = await fetch('https://unicornscodevisualier-production.up.railway.app/api/visualize', fetchOptions);
         }
