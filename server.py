@@ -294,9 +294,12 @@ def get_user_global_vars():
                 continue
                 
             if is_in_main and line:
-                match = re.search(r'\\b([A-Za-z_][A-Za-z0-9_]*)(?:\\[.*?\\])?\\s*;', line)
-                if match:
-                    var_name = match.group(1)
+                clean_line = line.replace(";", "").strip()
+                import re
+                no_brackets = re.sub(r'\\[.*?\\]', '', clean_line)
+                idents = re.findall(r'[A-Za-z_][A-Za-z0-9_]*', no_brackets)
+                if idents:
+                    var_name = idents[-1]
                     if not var_name.startswith("_") and "@" not in var_name:
                         globals_list.append(var_name)
     except Exception as e:
@@ -308,6 +311,11 @@ try:
     gdb.execute("set confirm off")
     gdb.execute("set print pretty off")
     gdb.execute("set pagination off")
+    
+    gdb.execute("set max-value-size unlimited") 
+    gdb.execute("set print elements 30")       
+    gdb.execute("set print repeats 0")
+    
     gdb.execute("break main")
     gdb.execute("run < input.txt > output.txt")
 
@@ -334,12 +342,26 @@ try:
         
         for g_name in user_globals:
             try:
-                val_str = str(gdb.parse_and_eval(g_name))
-                if "{" in val_str and "}" in val_str:
-                    fmt_val = val_str
+                val_str = str(gdb.parse_and_eval(g_name)).strip()
+                if val_str.startswith("{") and val_str.endswith("}"):
+                    inner_str = val_str[1:-1]
+                    items = []
+                    depth = 0
+                    curr = ""
+                    for char in inner_str:
+                        if char == '{': depth += 1
+                        elif char == '}': depth -= 1
+                        
+                        if char == ',' and depth == 0:
+                            if curr.strip(): items.append(curr.strip())
+                            curr = ""
+                        else:
+                            curr += char
+                    if curr.strip(): items.append(curr.strip())
+                    locals_dict[f"[Global] {g_name}"] = {"type": "list", "val": items}
                 else:
-                    fmt_val = val_str.split(" ")[0]
-                locals_dict[f"[Global] {g_name}"] = {"type": "prim", "val": fmt_val}
+                    fmt_val = val_str if "{" in val_str else val_str.split(" ")[0]
+                    locals_dict[f"[Global] {g_name}"] = {"type": "prim", "val": fmt_val}
             except: pass
         
         try:
@@ -349,12 +371,26 @@ try:
                     if symbol.is_variable or symbol.is_argument:
                         if not symbol.name.startswith("_"):
                             try:
-                                val = str(frame.read_var(symbol))
-                                if "{" in val and "}" in val:
-                                    fmt_val = val
+                                val = str(frame.read_var(symbol)).strip()
+                                if val.startswith("{") and val.endswith("}"):
+                                    inner_str = val[1:-1]
+                                    items = []
+                                    depth = 0
+                                    curr = ""
+                                    for char in inner_str:
+                                        if char == '{': depth += 1
+                                        elif char == '}': depth -= 1
+                                        
+                                        if char == ',' and depth == 0:
+                                            if curr.strip(): items.append(curr.strip())
+                                            curr = ""
+                                        else:
+                                            curr += char
+                                    if curr.strip(): items.append(curr.strip())
+                                    locals_dict[symbol.name] = {"type": "list", "val": items}
                                 else:
-                                    fmt_val = val.split(" ")[0]
-                                locals_dict[symbol.name] = {"type": "prim", "val": fmt_val}
+                                    fmt_val = val if "{" in val else val.split(" ")[0]
+                                    locals_dict[symbol.name] = {"type": "prim", "val": fmt_val}
                             except: pass
                 block = block.superblock
         except: pass

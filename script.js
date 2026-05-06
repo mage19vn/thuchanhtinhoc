@@ -340,64 +340,6 @@ function closeSearch() {
     codeInput.focus();
 }
 
-function showAutocomplete() {
-    const start = codeInput.selectionStart;
-    const text = codeInput.value.substring(0, start);
-    const match = text.match(/[a-zA-Z0-9_]+$/); 
-    const word = match ? match[0] : "";
-    
-    const lang = langSelect.value;
-    const words = ideKeywords[lang].filter(w => w.toLowerCase().startsWith(word.toLowerCase()));
-    
-    const list = document.getElementById('autocompleteList');
-    list.innerHTML = '';
-    
-    if (words.length === 0) {
-        closeAutocomplete();
-        return;
-    }
-
-    words.forEach((w, i) => {
-        const li = document.createElement('li');
-        li.textContent = w;
-        if (i === 0) li.className = 'active';
-        li.onmousedown = (e) => { 
-            e.preventDefault();
-            insertAutocomplete(w, word.length);
-        };
-        list.appendChild(li);
-    });
-
-    const lines = text.split('\n');
-    const currentLine = lines.length;
-    const currentCol = lines[lines.length - 1].length;
-    
-    const top = Math.min((currentLine * 24) + 10 - codeInput.scrollTop, codeInput.clientHeight - 40);
-    const left = Math.min((currentCol * 8) + 50, codeInput.clientWidth - 150);
-
-    list.style.top = top + 'px';
-    list.style.left = left + 'px';
-    list.style.display = 'block';
-    
-    isAutocompleting = true;
-    currentSuggestionIndex = 0;
-}
-
-function insertAutocomplete(word, replaceLength) {
-    const start = codeInput.selectionStart;
-    const val = codeInput.value;
-    const newVal = val.substring(0, start - replaceLength) + word + val.substring(start);
-    codeInput.value = newVal;
-    codeInput.selectionStart = codeInput.selectionEnd = start - replaceLength + word.length;
-    updateEditor();
-    closeAutocomplete();
-}
-
-function closeAutocomplete() {
-    document.getElementById('autocompleteList').style.display = 'none';
-    isAutocompleting = false;
-}
-
 codeInput.addEventListener('input', () => {
     if (isAutocompleting) showAutocomplete(); 
 });
